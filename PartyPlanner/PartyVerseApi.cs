@@ -83,9 +83,9 @@ namespace PartyPlanner
                     var name = worldGroup.Name.ExtractText();
 
                         // region 7 = cloud beta dc
-                        if (name != "Dev" && worldGroup.Region != 7)
+                        if (name != "Dev" && worldGroup.Region.RowId != 7)
                         {
-                            dataCenters.Add((int)worldGroup.RowId, new Models.DataCenterType((int)worldGroup.RowId, worldGroup.Name.ExtractText(), worldGroup.Region));
+                            dataCenters.Add((int)worldGroup.RowId, new Models.DataCenterType((int)worldGroup.RowId, worldGroup.Name.ExtractText(), (int)worldGroup.Region.RowId));
                         }
                 }
             }
