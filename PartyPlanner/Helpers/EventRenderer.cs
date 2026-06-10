@@ -1,5 +1,8 @@
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using Dalamud.Utility;
+using ECommons.GameHelpers;
+using PartyPlanner.IPC;
 using PartyPlanner.Models;
 using System;
 using System.Numerics;
@@ -60,6 +63,8 @@ public static class EventRenderer
             ImGui.Text("Click to copy");
             ImGui.EndTooltip();
         }
+
+        DrawTravelButton(ev);
 
         ImGui.Text(string.Format("Attendees: {0}", ev.AttendeeCount));
 
@@ -140,6 +145,34 @@ public static class EventRenderer
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Renders an optional "Travel to &lt;world&gt;" button when the event's venue is on a
+    /// different world than the player. Uses the Lifestream plugin via IPC; the button is
+    /// disabled (with a hint) when Lifestream isn't installed, so it is never a hard dependency.
+    /// </summary>
+    private static void DrawTravelButton(EventType ev)
+    {
+        var server = ev.LocationData?.Server;
+        if (server == null || server.Id == 0)
+            return;
+
+        if (!Player.Available || server.Id == Player.Object!.CurrentWorld.RowId)
+            return;
+
+        var available = LifestreamIPC.Installed;
+        using (ImRaii.Disabled(!available))
+        {
+            if (ImGui.SmallButton($"Travel to {server.Name}"))
+            {
+                if (!Plugin.Lifestream.IsBusy())
+                    Plugin.Lifestream.ChangeWorldById((uint)server.Id);
+            }
+        }
+
+        if (!available && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+            ImGui.SetTooltip("Install the Lifestream plugin to travel to this world.");
     }
 
     /// <summary>

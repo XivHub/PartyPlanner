@@ -7,6 +7,8 @@ using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using ECommons;
+using PartyPlanner.IPC;
 using PartyPlanner.Windows;
 using System;
 
@@ -31,6 +33,7 @@ namespace PartyPlanner
         [PluginService]
         public static ITextureProvider TextureProvider { get; private set; } = null!;
         public static IFontHandle TitleFontHandle { get; private set; } = null!;
+        public static LifestreamIPC Lifestream { get; private set; } = null!;
         public Configuration Configuration { get; init; }
         public WindowSystem WindowSystem = new("PartyPlanner");
         private readonly MainWindow mainWindow;
@@ -38,6 +41,9 @@ namespace PartyPlanner
 
         public Plugin()
         {
+            ECommonsMain.Init(PluginInterface, this, Module.DalamudReflector);
+            Lifestream = new LifestreamIPC();
+
             this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             this.Configuration.Initialize(PluginInterface);
 
@@ -88,6 +94,8 @@ namespace PartyPlanner
             TitleFontHandle.Dispose();
 
             CommandManager.RemoveHandler(commandName);
+
+            ECommonsMain.Dispose();
         }
 
         private void OnCommand(string command, string args)
