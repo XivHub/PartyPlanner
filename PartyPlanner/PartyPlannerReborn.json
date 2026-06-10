@@ -1,15 +1,16 @@
 {
   "Author": "Zhyra",
-  "Name": "PartyPlanner",
+  "Name": "PartyPlanner Reborn",
   "Punchline": "Browse community events sourced from partake.gg directly from your client!",
-  "Description": "Browse community events sourced from partake.gg directly from your client!",
+  "Description": "Browse community events sourced from partake.gg directly from your client! ZhyraPlugins fork with optional Lifestream travel-to-venue support.",
   "RepoUrl": "https://github.com/ZhyraPlugins/PartyPlanner",
   "IconUrl": "https://raw.githubusercontent.com/ZhyraPlugins/PartyPlanner/master/PartyPlanner/images/icon.png",
-  "InternalName": "PartyPlanner",
+  "InternalName": "PartyPlannerReborn",
   "ApplicableVersion": "any",
   "Tags": [
     "plugin",
     "partyverse",
-    "partake"
+    "partake",
+    "events"
   ]
 }

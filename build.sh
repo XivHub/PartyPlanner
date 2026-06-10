@@ -31,4 +31,4 @@ DALAMUD_HOME="$DALAMUD_HOME" "$DOTNET" build PartyPlanner/PartyPlanner.csproj \
     -c Release -p:Platform=x64 -p:EnableWindowsTargeting=true "$@"
 
 echo
-echo "Artifact: PartyPlanner/bin/x64/Release/PartyPlanner/latest.zip"
+echo "Artifact: PartyPlanner/bin/x64/Release/PartyPlannerReborn/latest.zip"

@@ -10,6 +10,9 @@
 		<PackageProjectUrl>https://github.com/edg-l/PartyPlanner</PackageProjectUrl>
 		<IsPackable>false</IsPackable>
 		<LangVersion>latest</LangVersion>
+		<!-- Distinct assembly/InternalName so this fork can be installed alongside the official PartyPlanner. -->
+		<AssemblyName>PartyPlannerReborn</AssemblyName>
+		<RootNamespace>PartyPlanner</RootNamespace>
 	</PropertyGroup>
 
 	<ItemGroup>
