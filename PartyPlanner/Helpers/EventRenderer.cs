@@ -147,32 +147,94 @@ public static class EventRenderer
         }
     }
 
+    private enum TravelTier { None, DisabledNoLifestream, WorldOnly, DoorStep }
+
+    private static TravelTier ResolveTier(EventType ev, out HousingAddress? addr)
+    {
+        addr = null;
+        var server = ev.LocationData?.Server;
+        if (server == null || server.Id == 0)
+            return TravelTier.None;
+        if (!Player.Available || server.Id == Player.Object!.CurrentWorld.RowId)
+            return TravelTier.None;
+        if (!LifestreamIPC.Installed)
+            return TravelTier.DisabledNoLifestream;
+        addr = HousingLocationParser.Parse(ev.Location);
+        if (addr != null && NavmeshIPC.Installed)
+            return TravelTier.DoorStep;
+        return TravelTier.WorldOnly;
+    }
+
     /// <summary>
-    /// Renders an optional "Travel to &lt;world&gt;" button when the event's venue is on a
-    /// different world than the player. Uses the Lifestream plugin via IPC; the button is
-    /// disabled (with a hint) when Lifestream isn't installed, so it is never a hard dependency.
+    /// Renders an optional travel button when the event's venue is on a different world than
+    /// the player. Offers door-step navigation (Lifestream + vnavmesh) when the location
+    /// parses as a housing address and vnavmesh is present, world-only travel otherwise,
+    /// and a disabled hint when Lifestream isn't installed at all.
     /// </summary>
     private static void DrawTravelButton(EventType ev)
     {
-        var server = ev.LocationData?.Server;
-        if (server == null || server.Id == 0)
+        var tier = ResolveTier(ev, out var addr);
+        if (tier == TravelTier.None)
             return;
 
-        if (!Player.Available || server.Id == Player.Object!.CurrentWorld.RowId)
-            return;
+        var server = ev.LocationData!.Server;
 
-        var available = LifestreamIPC.Installed;
-        using (ImRaii.Disabled(!available))
+        switch (tier)
         {
-            if (ImGui.SmallButton($"Travel to {server.Name}"))
+            case TravelTier.DoorStep:
             {
-                if (!Plugin.Lifestream.IsBusy())
-                    Plugin.Lifestream.ChangeWorldById((uint)server.Id);
+                var a = addr!.Value;
+                var slotLabel = a.IsApartment ? $"Apt{a.ApartmentNumber}" : $"P{a.Plot}";
+                var label = $"Travel to {a.District} W{a.Ward} {slotLabel}";
+                if (ImGui.SmallButton(label))
+                {
+                    if (!Plugin.Lifestream.IsBusy())
+                    {
+                        var args = HousingLocationParser.ToBuildArgs(a, server.Name);
+                        var entry = Plugin.Lifestream.BuildAddressBookEntry(
+                            args.worldStr, args.cityStr, args.wardNum,
+                            args.plotApartmentNum, args.isApartment, args.isSubdivision);
+                        if (entry.World != 0)
+                            Plugin.Lifestream.GoToHousingAddress(entry);
+                        else
+                            Plugin.Lifestream.ChangeWorldById((uint)server.Id);
+                    }
+                }
+                if (ImGui.IsItemHovered())
+                {
+                    var slotDesc = a.IsApartment ? $"Apartment {a.ApartmentNumber}" : $"Plot {a.Plot}";
+                    ImGui.SetTooltip(
+                        $"Walk to {server.Name} — {a.District}, Ward {a.Ward}, {slotDesc} (via Lifestream + vnavmesh)");
+                }
+                break;
+            }
+
+            case TravelTier.WorldOnly:
+            {
+                if (ImGui.SmallButton($"Travel to {server.Name}"))
+                {
+                    if (!Plugin.Lifestream.IsBusy())
+                        Plugin.Lifestream.ChangeWorldById((uint)server.Id);
+                }
+                if (addr != null && !NavmeshIPC.Installed && ImGui.IsItemHovered())
+                {
+                    ImGui.SetTooltip(
+                        $"Install vnavmesh to walk to the plot door. Traveling to {server.Name} only.");
+                }
+                break;
+            }
+
+            case TravelTier.DisabledNoLifestream:
+            {
+                using (ImRaii.Disabled(true))
+                {
+                    ImGui.SmallButton($"Travel to {server.Name}");
+                }
+                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                    ImGui.SetTooltip("Install the Lifestream plugin to travel to this world.");
+                break;
             }
         }
-
-        if (!available && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-            ImGui.SetTooltip("Install the Lifestream plugin to travel to this world.");
     }
 
     /// <summary>

@@ -1,3 +1,5 @@
+// Must match Lifestream's AddressBookEntry.cs line 1 EXACTLY; field ORDER determines slot assignment across the IPC boundary (names are erased at runtime).
+global using AddressBookEntryTuple = (string Name, int World, int City, int Ward, int PropertyType, int Plot, int Apartment, bool ApartmentSubdivision, bool AliasEnabled, string Alias);
 using ECommons.EzIpcManager;
 using ECommons.Reflection;
 using System;
@@ -33,4 +35,10 @@ public class LifestreamIPC
 
     /// <summary>Whether Lifestream is currently busy with a task.</summary>
     [EzIPC] public Func<bool> IsBusy;
+
+    /// <summary>Lifestream.BuildAddressBookEntry — (worldStr, cityStr, wardNum, plotApartmentNum, isApartment, isSubdivision) -> entry. Returns a zeroed tuple (World==0) if Lifestream rejected the input.</summary>
+    [EzIPC] public Func<string, string, string, string, bool, bool, AddressBookEntryTuple> BuildAddressBookEntry;
+    /// <summary>Lifestream.GoToHousingAddress — travel/walk to the housing address (void provider-side, so Action).
+    /// Handles travel from anywhere (teleport + residential aethernet + walk); no pre-check needed.</summary>
+    [EzIPC] public Action<AddressBookEntryTuple> GoToHousingAddress;
 }

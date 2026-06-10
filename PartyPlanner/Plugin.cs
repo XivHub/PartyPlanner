@@ -34,6 +34,7 @@ namespace PartyPlanner
         public static ITextureProvider TextureProvider { get; private set; } = null!;
         public static IFontHandle TitleFontHandle { get; private set; } = null!;
         public static LifestreamIPC Lifestream { get; private set; } = null!;
+        public static NavmeshIPC Navmesh { get; private set; } = null!;
         public Configuration Configuration { get; init; }
         public WindowSystem WindowSystem = new("PartyPlanner");
         private readonly MainWindow mainWindow;
@@ -43,6 +44,7 @@ namespace PartyPlanner
         {
             ECommonsMain.Init(PluginInterface, this, Module.DalamudReflector);
             Lifestream = new LifestreamIPC();
+            Navmesh = new NavmeshIPC();
 
             this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             this.Configuration.Initialize(PluginInterface);

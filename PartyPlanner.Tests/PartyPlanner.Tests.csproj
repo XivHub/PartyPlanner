@@ -22,4 +22,14 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\PartyPlanner\Helpers\HousingLocationParser.cs" Link="HousingLocationParser.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\partake_locations_sample.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
