@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Compile Include="..\PartyPlanner\Helpers\HousingLocationParser.cs" Link="HousingLocationParser.cs" />
+    <Compile Include="..\PartyPlanner\Helpers\TextSanitizer.cs" Link="TextSanitizer.cs" />
   </ItemGroup>
 
   <ItemGroup>

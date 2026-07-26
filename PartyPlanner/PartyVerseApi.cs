@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Reflection;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dalamud.Logging;
 using Dalamud.Utility;
@@ -13,11 +12,12 @@ using GraphQL;
 using GraphQL.Client.Http;
 using GraphQL.Client.Serializer.Newtonsoft;
 using Lumina.Excel.Sheets;
+using PartyPlanner.Helpers;
 using PartyPlanner.Models;
 
 namespace PartyPlanner
 {
-    public partial class PartyVerseApi : IDisposable
+    public class PartyVerseApi : IDisposable
     {
         private readonly GraphQLHttpClient graphQL;
 
@@ -121,15 +121,7 @@ namespace PartyPlanner
             var data = res.Data;
             if (data == null) return [];
 
-            foreach (var ev in data.Events)
-            {
-                // Remove emojis.
-                string description = CleanUnicodeSymbolsRegex().Replace(ev.Description, string.Empty);
-                ev.Description = description.Trim();
-
-                string title = CleanUnicodeSymbolsRegex().Replace(ev.Title, string.Empty);
-                ev.Title = title.Trim();
-            }
+            SanitizeEvents(data.Events);
 
             return data.Events;
         }
@@ -158,17 +150,22 @@ namespace PartyPlanner
             var data = res.Data;
             if (data == null) return [];
 
-            foreach (var ev in data.Events)
-            {
-                // Remove emojis.
-                string description = CleanUnicodeSymbolsRegex().Replace(ev.Description, string.Empty);
-                ev.Description = description.Trim();
-
-                string title = CleanUnicodeSymbolsRegex().Replace(ev.Title, string.Empty);
-                ev.Title = title.Trim();
-            }
+            SanitizeEvents(data.Events);
 
             return data.Events;
+        }
+
+        /// <summary>
+        /// Folds decorative Unicode down to ASCII and drops what the game font cannot render
+        /// (emojis, other scripts).
+        /// </summary>
+        private static void SanitizeEvents(List<Models.EventType> events)
+        {
+            foreach (var ev in events)
+            {
+                ev.Description = TextSanitizer.Sanitize(ev.Description);
+                ev.Title = TextSanitizer.Sanitize(ev.Title);
+            }
         }
 
         public bool TryGetRegionForWorld(int worldId, out int regionIndex, out string dcName)
@@ -196,8 +193,5 @@ namespace PartyPlanner
         {
             graphQL.Dispose();
         }
-
-        [GeneratedRegex(@"[^\u0000-\u007F]+")]
-        private static partial Regex CleanUnicodeSymbolsRegex();
     }
 }
