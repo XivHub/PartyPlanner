@@ -31,21 +31,43 @@ public class EventStringCache
                 cachedLastUpdateString = string.Empty;
             }
 
+            var now = DateTime.UtcNow;
+            var minutesToStart = (ev.StartsAt - now).TotalMinutes;
+
             cached = new CachedEventStrings
             {
                 StartsAtHumanized = ev.StartsAt.Humanize(),
                 EndsAtHumanized = ev.EndsAt.Humanize(),
-                StartsAtLocal = ev.StartsAt.ToLocalTime().ToString(),
-                EndsAtLocal = ev.EndsAt.ToLocalTime().ToString(),
+                StartsAtLocal = FormatLocal(ev.StartsAt),
+                EndsAtLocal = FormatLocal(ev.EndsAt),
                 FormattedTags = string.Join(", ", ev.Tags),
                 Location = ev.LocationData?.Server != null
                     ? string.Format("[{0}] {1}", ev.LocationData.Server.Name, ev.Location)
-                    : ev.Location
+                    : ev.Location,
+                IsLive = ev.StartsAt <= now && ev.EndsAt >= now,
+                StartsSoonLabel = minutesToStart > 0 && minutesToStart <= 60
+                    ? string.Format("Starts in {0} min", Math.Max(1, (int)Math.Round(minutesToStart)))
+                    : string.Empty,
             };
             cache[ev.Id] = cached;
         }
 
         return cached;
+    }
+
+    /// <summary>
+    /// Absolute local time. The day of the week is always included; the clock style follows
+    /// <see cref="Configuration.TimeFormat"/>.
+    /// </summary>
+    private static string FormatLocal(DateTime utc)
+    {
+        var local = utc.ToLocalTime();
+        return Plugin.Config.TimeFormat switch
+        {
+            TimeFormat.TwentyFourHour => local.ToString("ddd d MMM HH:mm"),
+            TimeFormat.TwelveHour     => local.ToString("ddd d MMM h:mm tt"),
+            _                         => local.ToString(),
+        };
     }
 
     /// <summary>

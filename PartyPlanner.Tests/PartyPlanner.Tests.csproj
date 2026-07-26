@@ -28,6 +28,7 @@
     <Compile Include="..\PartyPlanner\Helpers\EventFilterCache.cs" Link="EventFilterCache.cs" />
     <Compile Include="..\PartyPlanner\Models\EventType.cs" Link="EventType.cs" />
     <Compile Include="..\PartyPlanner\SortMode.cs" Link="SortMode.cs" />
+    <Compile Include="..\PartyPlanner\TimeFilter.cs" Link="TimeFilter.cs" />
   </ItemGroup>
 
   <ItemGroup>

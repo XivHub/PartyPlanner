@@ -35,10 +35,19 @@ public sealed class MainWindow : Window, IDisposable
     private readonly Dictionary<string, string> _searchByDc = [];
 
     private static readonly string[] SortLabels = ["Starts (earliest)", "Starts (latest)", "Ends (earliest)", "Ends (latest)", "Most attendees"];
+    private static readonly (TimeFilter Filter, string Label, string Tooltip)[] TimeFilters =
+    [
+        (TimeFilter.All,   "All",       "Everything within the configured horizon."),
+        (TimeFilter.Now,   "Now",       "Already started and not over yet."),
+        (TimeFilter.Today, "Today",     "Starts before midnight your time."),
+        (TimeFilter.Week,  "This week", "Starts within the next 7 days."),
+    ];
 
     private bool _isLoading = false;
     private string _loadingStatus = string.Empty;
     private int _refreshInFlight;
+    private DateTime lastAttempt = DateTime.MinValue;
+    private int fetchedHorizonDays;
 
     public MainWindow(Configuration configuration) : base("PartyPlanner", ImGuiWindowFlags.None)
     {
@@ -88,11 +97,16 @@ public sealed class MainWindow : Window, IDisposable
 
     private async Task FetchEvents(CancellationToken ct)
     {
+        var horizonDays = Math.Max(1, this.Configuration.EventHorizonDays);
+
         lock (_dataLock)
         {
             displayError = null;
             _isLoading = true;
             _loadingStatus = "Fetching active events...";
+            // Tracked separately from lastUpdate so a failing fetch can't be retried every frame.
+            lastAttempt = DateTime.Now;
+            fetchedHorizonDays = horizonDays;
         }
 
         var localEvents = new List<Models.EventType>(50);
@@ -131,9 +145,9 @@ public sealed class MainWindow : Window, IDisposable
             localEvents = localEvents.DistinctBy(e => e.Id).ToList();
 
             var now = DateTime.UtcNow;
-            var cutoff = now.AddMonths(1);
+            var cutoff = now.AddDays(horizonDays);
 
-            // Drop events that have already ended or start more than 1 month away.
+            // Drop events that have already ended or start past the configured horizon.
             localEvents = localEvents
                 .Where(e => e.EndsAt >= now && e.StartsAt <= cutoff)
                 .ToList();
@@ -199,10 +213,33 @@ public sealed class MainWindow : Window, IDisposable
     {
         base.OnOpen();
         TryAutoSelectHomeWorld();
-        if (lastUpdate.AddMinutes(5).CompareTo(DateTime.Now) <= 0)
+        if (IsStale())
         {
             Task.Run(() => UpdateEvents(_cts.Token));
         }
+    }
+
+    /// <summary>
+    /// Whether the last fetch attempt is older than the configured refresh interval. Uses the
+    /// attempt time, not the last success, so a failing API doesn't cause a request per frame.
+    /// </summary>
+    private bool IsStale()
+    {
+        var minutes = this.Configuration.AutoRefreshMinutes;
+        if (minutes <= 0) minutes = 5;
+        return lastAttempt.AddMinutes(minutes) <= DateTime.Now;
+    }
+
+    /// <summary>
+    /// Drops cached display strings and filter results after a settings change, and refetches when
+    /// the change was one that affects what gets fetched.
+    /// </summary>
+    public void InvalidateCaches()
+    {
+        eventStringCache.Clear();
+        eventFilterCache.Clear();
+        if (Math.Max(1, this.Configuration.EventHorizonDays) != fetchedHorizonDays)
+            Task.Run(() => UpdateEvents(_cts.Token));
     }
 
     private void TryAutoSelectHomeWorld()
@@ -233,6 +270,24 @@ public sealed class MainWindow : Window, IDisposable
     }
 
 
+    /// <summary>Radio row for the quick "when" filter. Shared across data centers, like the sort.</summary>
+    private void DrawTimeFilters(string dataCenterName)
+    {
+        ImGui.TextDisabled("When:");
+        foreach (var (filter, label, tooltip) in TimeFilters)
+        {
+            ImGui.SameLine();
+            if (ImGui.RadioButton(label + "##when" + dataCenterName, this.Configuration.CurrentTimeFilter == filter))
+            {
+                this.Configuration.CurrentTimeFilter = filter;
+                this.Configuration.Save();
+                eventFilterCache.Clear();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(tooltip);
+        }
+    }
+
     /// <summary>Ticked tags for a data center, created on first use. Persisted in the config.</summary>
     private HashSet<string> SelectedTagsFor(string dataCenterName)
     {
@@ -251,6 +306,10 @@ public sealed class MainWindow : Window, IDisposable
         int evCount;
         HashSet<string> dcsWithEvents;
         lock (_dataLock) { localError = displayError; evCount = partyVerseEvents.Count; isLoading = _isLoading; loadingStatus = _loadingStatus; dcsWithEvents = eventsByDc.Keys.ToHashSet(); }
+
+        // Auto-refresh while the window is open.
+        if (this.Configuration.AutoRefreshMinutes > 0 && !isLoading && IsStale())
+            Task.Run(() => UpdateEvents(_cts.Token));
 
         if (isLoading) ImGui.BeginDisabled();
         if (ImGui.Button("Reload Events"))
@@ -382,6 +441,8 @@ public sealed class MainWindow : Window, IDisposable
                 eventFilterCache.Clear();
             }
 
+            DrawTimeFilters(dataCenter.Name);
+
             var selectedTags = SelectedTagsFor(dataCenter.Name);
 
             for (var i = 0; i < tags.Count; i++)
@@ -404,7 +465,9 @@ public sealed class MainWindow : Window, IDisposable
             // Filter by the ticked tags that this data center still offers, so a stale selection
             // from another data center can't silently empty the list.
             var activeTags = tags.Where(selectedTags.Contains).ToList();
-            var filteredEvents = eventFilterCache.GetFiltered(dataCenter.Name, events, activeTags, searchText, this.Configuration.CurrentSortMode);
+            var filteredEvents = eventFilterCache.GetFiltered(
+                dataCenter.Name, events, activeTags, searchText, this.Configuration.CurrentSortMode,
+                this.Configuration.CurrentTimeFilter, this.Configuration.MinAttendees);
 
             foreach (var ev in filteredEvents)
             {
@@ -415,7 +478,9 @@ public sealed class MainWindow : Window, IDisposable
             }
 
             if (filteredEvents.Count == 0)
-                ImGui.Text("No events found.");
+                ImGui.Text(events.Count == 0
+                    ? "No events found."
+                    : "No events match the current filters.");
 
             ImGui.EndTabItem();
         }

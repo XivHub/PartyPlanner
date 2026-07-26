@@ -3,6 +3,7 @@ using PartyPlanner.Helpers;
 using PartyPlanner.Models;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace PartyPlanner.Tests;
 
@@ -143,6 +144,105 @@ public class EventFilterCacheTests
         var cache = new EventFilterCache();
         // SampleEvents have no LocationData at all.
         Assert.Empty(Filter(cache, SampleEvents(), "balmung"));
+    }
+
+    // ── Quick "when" filter ─────────────────────────────────────────────────
+
+    private static readonly DateTime Now = new(2026, 7, 26, 12, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>Midnight after the local day containing <see cref="Now"/>, in UTC.</summary>
+    private static DateTime EndOfLocalDay =>
+        DateTime.SpecifyKind(Now.ToLocalTime().Date.AddDays(1), DateTimeKind.Local).ToUniversalTime();
+
+    private static EventType Span(int id, DateTime startsAt, DateTime endsAt, int attendees = 0) => new()
+    {
+        Id = id,
+        Title = $"Event {id}",
+        StartsAt = startsAt,
+        EndsAt = endsAt,
+        AttendeeCount = attendees,
+    };
+
+    private static List<EventType> TimedEvents() =>
+    [
+        Span(1, Now.AddHours(-1), Now.AddHours(1)),                      // live
+        Span(2, EndOfLocalDay.AddMinutes(-30), EndOfLocalDay),           // later today
+        Span(3, EndOfLocalDay.AddMinutes(30), EndOfLocalDay.AddHours(3)),// tomorrow
+        Span(4, Now.AddDays(3), Now.AddDays(3).AddHours(2)),             // this week
+        Span(5, Now.AddDays(10), Now.AddDays(10).AddHours(2)),           // later
+        Span(6, Now.AddHours(-5), Now.AddHours(-4)),                     // already over
+    ];
+
+    private static List<int> Ids(EventFilterCache cache, TimeFilter filter, int minAttendees = 0) =>
+        cache.GetFiltered("Chaos", TimedEvents(), [], string.Empty, SortMode.StartsAtAsc, filter, minAttendees, Now)
+             .Select(e => e.Id).ToList();
+
+    [Fact]
+    public void TimeFilterAllKeepsEverything()
+    {
+        // Sorted by start time, so the event that already finished leads.
+        Assert.Equal([6, 1, 2, 3, 4, 5], Ids(new EventFilterCache(), TimeFilter.All));
+    }
+
+    [Fact]
+    public void TimeFilterNowKeepsOnlyRunningEvents()
+    {
+        Assert.Equal([1], Ids(new EventFilterCache(), TimeFilter.Now));
+    }
+
+    [Fact]
+    public void TimeFilterTodayStopsAtLocalMidnight()
+    {
+        Assert.Equal([1, 2], Ids(new EventFilterCache(), TimeFilter.Today));
+    }
+
+    [Fact]
+    public void TimeFilterWeekCoversTheNextSevenDays()
+    {
+        Assert.Equal([1, 2, 3, 4], Ids(new EventFilterCache(), TimeFilter.Week));
+    }
+
+    [Fact]
+    public void TimeFilterDropsEndedEvents()
+    {
+        Assert.All(Ids(new EventFilterCache(), TimeFilter.Week), id => Assert.NotEqual(6, id));
+    }
+
+    [Fact]
+    public void MinAttendeesFiltersSmallEvents()
+    {
+        var cache = new EventFilterCache();
+        var events = new List<EventType>
+        {
+            Span(1, Now.AddHours(1), Now.AddHours(2), attendees: 3),
+            Span(2, Now.AddHours(1), Now.AddHours(2), attendees: 30),
+        };
+        var result = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc,
+            TimeFilter.All, minAttendees: 10, nowUtc: Now);
+        Assert.Single(result);
+        Assert.Equal(2, result[0].Id);
+    }
+
+    [Fact]
+    public void RelativeFilterCacheExpiresWithTime()
+    {
+        var cache = new EventFilterCache();
+        var events = TimedEvents();
+        var first = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc, TimeFilter.Now, 0, Now);
+        var sameMinute = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc, TimeFilter.Now, 0, Now.AddSeconds(5));
+        var nextMinute = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc, TimeFilter.Now, 0, Now.AddMinutes(2));
+        Assert.Same(first, sameMinute);
+        Assert.NotSame(first, nextMinute);
+    }
+
+    [Fact]
+    public void AbsoluteFilterCacheIgnoresTime()
+    {
+        var cache = new EventFilterCache();
+        var events = TimedEvents();
+        var first = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc, TimeFilter.All, 0, Now);
+        var later = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc, TimeFilter.All, 0, Now.AddHours(9));
+        Assert.Same(first, later);
     }
 
     [Fact]

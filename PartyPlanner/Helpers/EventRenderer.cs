@@ -64,23 +64,33 @@ public static class EventRenderer
             ImGui.EndTooltip();
         }
 
-        DrawTravelButton(ev);
+        if (Plugin.Config.ShowTravelButton)
+            DrawTravelButton(ev);
 
         ImGui.Text(string.Format("Attendees: {0}", ev.AttendeeCount));
 
-        // Start time (humanized with tooltip showing exact time)
-        ImGui.Text(string.Format("Starts {0}", cached.StartsAtHumanized));
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip(cached.StartsAtLocal);
-        }
-        ImGui.SameLine();
+        // Live / starting-soon badge
+        if (cached.IsLive)
+            ImGui.TextColored(ColorLightGreen, "Happening now");
+        else if (cached.StartsSoonLabel.Length > 0)
+            ImGui.TextColored(ColorSectionHeader, cached.StartsSoonLabel);
 
-        // End time (humanized with tooltip showing exact time)
-        ImGui.Text(string.Format("|  Ends {0}", cached.EndsAtHumanized));
-        if (ImGui.IsItemHovered())
+        if (Plugin.Config.ShowRelativeTimes)
         {
-            ImGui.SetTooltip(cached.EndsAtLocal);
+            // Start time (humanized with tooltip showing exact time)
+            ImGui.Text(string.Format("Starts {0}", cached.StartsAtHumanized));
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(cached.StartsAtLocal);
+            }
+            ImGui.SameLine();
+
+            // End time (humanized with tooltip showing exact time)
+            ImGui.Text(string.Format("|  Ends {0}", cached.EndsAtHumanized));
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(cached.EndsAtLocal);
+            }
         }
 
         // Full time range
@@ -104,7 +114,8 @@ public static class EventRenderer
                     var attachment = ev.Attachments[i];
                     var url = AttachmentBaseUrl + attachment;
                     var ext = System.IO.Path.GetExtension(attachment).ToLowerInvariant();
-                    var isImage = ext is ".webp" or ".png" or ".jpg" or ".jpeg" or ".gif";
+                    var isImageFile = ext is ".webp" or ".png" or ".jpg" or ".jpeg" or ".gif";
+                    var isImage = isImageFile && Plugin.Config.ShowAttachmentImages;
 
                     if (isImage)
                     {
@@ -135,7 +146,7 @@ public static class EventRenderer
                     }
                     else
                     {
-                        var kind = ext is ".mp4" or ".webm" or ".mov" ? "Video" : "File";
+                        var kind = ext is ".mp4" or ".webm" or ".mov" ? "Video" : isImageFile ? "Image" : "File";
                         var label = ev.Attachments.Length == 1
                             ? $"{kind} ({ext})##attach{i}"
                             : $"{kind} {i + 1} ({ext})##attach{i}";

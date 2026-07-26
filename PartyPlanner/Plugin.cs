@@ -35,6 +35,8 @@ namespace PartyPlanner
         public static IFontHandle TitleFontHandle { get; private set; } = null!;
         public static LifestreamIPC Lifestream { get; private set; } = null!;
         public static NavmeshIPC Navmesh { get; private set; } = null!;
+        /// <summary>Shared settings, so the render helpers don't have to thread them through.</summary>
+        public static Configuration Config { get; private set; } = null!;
         public Configuration Configuration { get; init; }
         public WindowSystem WindowSystem = new("PartyPlanner");
         private readonly MainWindow mainWindow;
@@ -48,6 +50,7 @@ namespace PartyPlanner
 
             this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             this.Configuration.Initialize(PluginInterface);
+            Config = this.Configuration;
 
             var uiBuilder = PluginInterface.UiBuilder;
             var defaultSpec = (SingleFontSpec)uiBuilder.DefaultFontSpec;
@@ -61,7 +64,7 @@ namespace PartyPlanner
             PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
             PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
             mainWindow = new MainWindow(this.Configuration);
-            configWindow = new ConfigWindow(this.Configuration);
+            configWindow = new ConfigWindow(this.Configuration, mainWindow.InvalidateCaches);
 
 
             WindowSystem.AddWindow(mainWindow);

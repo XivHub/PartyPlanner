@@ -18,6 +18,26 @@ namespace PartyPlanner
         /// <summary>Checked tag filters per data center, so they survive a reload and a restart.</summary>
         public Dictionary<string, HashSet<string>> SelectedTagsByDc { get; set; } = [];
 
+        public TimeFilter CurrentTimeFilter { get; set; } = TimeFilter.All;
+
+        /// <summary>Minutes between automatic refreshes while the window is open. 0 disables it.</summary>
+        public int AutoRefreshMinutes { get; set; } = 5;
+
+        /// <summary>How far ahead events are fetched and shown.</summary>
+        public int EventHorizonDays { get; set; } = 30;
+
+        /// <summary>Hide events with fewer attendees than this.</summary>
+        public int MinAttendees { get; set; } = 0;
+
+        public TimeFormat TimeFormat { get; set; } = TimeFormat.Culture;
+
+        /// <summary>Show the "starts in 2 hours" line next to the absolute times.</summary>
+        public bool ShowRelativeTimes { get; set; } = true;
+
+        public bool ShowAttachmentImages { get; set; } = true;
+
+        public bool ShowTravelButton { get; set; } = true;
+
         [NonSerialized]
         public bool SelectedRegionSet = false;
         [NonSerialized]
