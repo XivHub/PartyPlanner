@@ -2,12 +2,12 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 	<PropertyGroup>
 		<Authors>Zhyra</Authors>
-		<Company>ZhyraPlugins</Company>
+		<Company>XivHub</Company>
 		<Version>1.10.0</Version>
 		<Description>partake.gg, directly on your client!</Description>
 		<Copyright></Copyright>
 		<PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
-		<PackageProjectUrl>https://github.com/edg-l/PartyPlanner</PackageProjectUrl>
+		<PackageProjectUrl>https://github.com/XivHub/PartyPlanner</PackageProjectUrl>
 		<IsPackable>false</IsPackable>
 		<LangVersion>latest</LangVersion>
 		<!-- Distinct assembly/InternalName so this fork can be installed alongside the official PartyPlanner. -->

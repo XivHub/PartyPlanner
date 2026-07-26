@@ -2,9 +2,9 @@
   "Author": "Zhyra",
   "Name": "PartyPlanner Reborn",
   "Punchline": "Browse community events sourced from partake.gg directly from your client!",
-  "Description": "Browse community events sourced from partake.gg directly from your client! ZhyraPlugins fork with optional Lifestream travel: change to the event's world, or — with Lifestream + vnavmesh installed — walk straight to the event's housing plot/apartment door.",
-  "RepoUrl": "https://github.com/ZhyraPlugins/PartyPlanner",
-  "IconUrl": "https://raw.githubusercontent.com/ZhyraPlugins/PartyPlanner/master/PartyPlanner/images/icon.png",
+  "Description": "Browse community events sourced from partake.gg directly from your client! XIV Hub fork with optional Lifestream travel: change to the event's world, or, with Lifestream + vnavmesh installed, walk straight to the event's housing plot/apartment door.",
+  "RepoUrl": "https://github.com/XivHub/PartyPlanner",
+  "IconUrl": "https://raw.githubusercontent.com/XivHub/PartyPlanner/master/PartyPlanner/images/icon.png",
   "InternalName": "PartyPlannerReborn",
   "ApplicableVersion": "any",
   "Tags": [
