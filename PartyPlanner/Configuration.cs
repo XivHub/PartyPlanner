@@ -1,18 +1,10 @@
 using Dalamud.Configuration;
 using Dalamud.Plugin;
 using System;
+using System.Collections.Generic;
 
 namespace PartyPlanner
 {
-    public enum SortMode
-    {
-        StartsAtAsc,
-        StartsAtDesc,
-        EndsAtAsc,
-        EndsAtDesc,
-        AttendeeCountDesc
-    }
-
     [Serializable]
     public class Configuration : IPluginConfiguration
     {
@@ -22,6 +14,9 @@ namespace PartyPlanner
         public string SelectedDataCenter { get; set; } = string.Empty;
         public SortMode CurrentSortMode { get; set; } = SortMode.StartsAtAsc;
         public bool HomeWorldAutoSelected { get; set; } = false;
+
+        /// <summary>Checked tag filters per data center, so they survive a reload and a restart.</summary>
+        public Dictionary<string, HashSet<string>> SelectedTagsByDc { get; set; } = [];
 
         [NonSerialized]
         public bool SelectedRegionSet = false;

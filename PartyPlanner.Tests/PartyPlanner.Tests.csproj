@@ -25,6 +25,9 @@
   <ItemGroup>
     <Compile Include="..\PartyPlanner\Helpers\HousingLocationParser.cs" Link="HousingLocationParser.cs" />
     <Compile Include="..\PartyPlanner\Helpers\TextSanitizer.cs" Link="TextSanitizer.cs" />
+    <Compile Include="..\PartyPlanner\Helpers\EventFilterCache.cs" Link="EventFilterCache.cs" />
+    <Compile Include="..\PartyPlanner\Models\EventType.cs" Link="EventType.cs" />
+    <Compile Include="..\PartyPlanner\SortMode.cs" Link="SortMode.cs" />
   </ItemGroup>
 
   <ItemGroup>

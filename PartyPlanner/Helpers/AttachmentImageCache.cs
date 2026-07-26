@@ -21,12 +21,16 @@ public sealed class AttachmentImageCache : IDisposable
     // DXGI_FORMAT_R8G8B8A8_UNORM = 28
     private const int DxgiFormatR8G8B8A8Unorm = 28;
 
+    /// <summary>Textures kept resident. Attachments are full-size, so this bounds VRAM use.</summary>
+    private const int MaxEntries = 64;
+
     private enum LoadState { Pending, Loaded, Failed }
 
     private sealed class Entry
     {
         public LoadState State = LoadState.Pending;
         public IDalamudTextureWrap? Texture;
+        public long LastUsedFrame;
     }
 
     private readonly Dictionary<string, Entry> _cache = new();
@@ -34,6 +38,7 @@ public sealed class AttachmentImageCache : IDisposable
     private readonly HttpClient _http;
     private readonly ITextureProvider _textureProvider;
     private readonly CancellationTokenSource _cts = new();
+    private long _frame;
 
     public AttachmentImageCache(ITextureProvider textureProvider)
     {
@@ -41,6 +46,9 @@ public sealed class AttachmentImageCache : IDisposable
         _http = new HttpClient();
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("Dalamud-PartyPlanner");
     }
+
+    /// <summary>Marks the start of a UI frame, used to age cache entries.</summary>
+    public void BeginFrame() => Interlocked.Increment(ref _frame);
 
     /// <summary>
     /// Returns the loaded texture for the given URL, or null if still loading or failed.
@@ -50,13 +58,49 @@ public sealed class AttachmentImageCache : IDisposable
     {
         lock (_lock)
         {
-            if (_cache.TryGetValue(url, out var entry))
-                return entry.State == LoadState.Loaded ? entry.Texture : null;
+            var frame = Interlocked.Read(ref _frame);
 
-            var newEntry = new Entry();
+            if (_cache.TryGetValue(url, out var entry))
+            {
+                entry.LastUsedFrame = frame;
+                return entry.State == LoadState.Loaded ? entry.Texture : null;
+            }
+
+            var newEntry = new Entry { LastUsedFrame = frame };
             _cache[url] = newEntry;
             _ = LoadAsync(url, newEntry);
+            EvictIfNeeded(frame);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Drops the least recently used entries once the cache exceeds <see cref="MaxEntries"/>.
+    /// Only entries untouched this frame are considered, so a texture already handed to the
+    /// current draw list is never disposed underneath it.
+    /// </summary>
+    private void EvictIfNeeded(long frame)
+    {
+        while (_cache.Count > MaxEntries)
+        {
+            string? oldestUrl = null;
+            Entry? oldest = null;
+
+            foreach (var (candidateUrl, candidate) in _cache)
+            {
+                if (candidate.LastUsedFrame >= frame || candidate.State == LoadState.Pending)
+                    continue;
+                if (oldest == null || candidate.LastUsedFrame < oldest.LastUsedFrame)
+                {
+                    oldestUrl = candidateUrl;
+                    oldest = candidate;
+                }
+            }
+
+            if (oldestUrl == null) return;
+
+            oldest!.Texture?.Dispose();
+            _cache.Remove(oldestUrl);
         }
     }
 

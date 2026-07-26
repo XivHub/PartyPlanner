@@ -1,64 +1,13 @@
+using PartyPlanner;
+using PartyPlanner.Helpers;
+using PartyPlanner.Models;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace PartyPlanner.Tests;
 
 public class EventFilterCacheTests
 {
-    // Minimal copy of EventFilterCache — no Dalamud dependency.
-    private enum SortMode { StartsAtAsc, StartsAtDesc, EndsAtAsc, EndsAtDesc, AttendeeCountDesc }
-
-    private sealed class EventFilterCache
-    {
-        private readonly Dictionary<string, (List<EventType> filtered, int hash)> _cache = [];
-
-        public List<EventType> GetFiltered(string dc, List<EventType> all, List<string> tags,
-            string searchText = "", SortMode sortMode = SortMode.StartsAtAsc)
-        {
-            var hash = ComputeHash(tags, searchText, sortMode);
-            if (_cache.TryGetValue(dc, out var cached) && cached.hash == hash)
-                return cached.filtered;
-
-            IEnumerable<EventType> result = tags.Count == 0
-                ? all
-                : all.Where(e => tags.All(t => e.TagsSet.Contains(t)));
-
-            if (!string.IsNullOrEmpty(searchText))
-                result = result.Where(e =>
-                    e.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    e.Description.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-
-            result = sortMode switch
-            {
-                SortMode.StartsAtDesc      => result.OrderByDescending(e => e.StartsAt),
-                SortMode.EndsAtAsc         => result.OrderBy(e => e.EndsAt),
-                SortMode.EndsAtDesc        => result.OrderByDescending(e => e.EndsAt),
-                SortMode.AttendeeCountDesc => result.OrderByDescending(e => e.AttendeeCount),
-                _                          => result.OrderBy(e => e.StartsAt),
-            };
-
-            var list = result.ToList();
-            _cache[dc] = (list, hash);
-            return list;
-        }
-
-        public void Clear() => _cache.Clear();
-
-        private static int ComputeHash(List<string> tags, string searchText, SortMode sortMode)
-        {
-            unchecked
-            {
-                int h = 17;
-                foreach (var t in tags.OrderBy(x => x))
-                    h = h * 31 + t.GetHashCode();
-                h = h * 31 + searchText.GetHashCode();
-                h = h * 31 + (int)sortMode;
-                return h;
-            }
-        }
-    }
-
     private static EventType MakeEvent(int id, params string[] tags) => new()
     {
         Id = id,
@@ -77,12 +26,23 @@ public class EventFilterCacheTests
         MakeEvent(5),
     ];
 
+    private static List<EventType> SearchableEvents() =>
+    [
+        new() { Id = 1, Title = "Moonlit Gala", Description = "Live music all night.", Location = "Mist W6 P12",
+                Tags = ["dance"], LocationData = new EventLocationData { Server = new EventServerData { Name = "Balmung" } } },
+        new() { Id = 2, Title = "Card Night", Description = "Triple Triad tournament.", Location = "Goblet W3 P5",
+                Tags = ["games"], LocationData = new EventLocationData { Server = new EventServerData { Name = "Zodiark" } } },
+    ];
+
+    private static List<EventType> Filter(EventFilterCache cache, List<EventType> events, string search) =>
+        cache.GetFiltered("Chaos", events, [], search, SortMode.StartsAtAsc);
+
     [Fact]
     public void NoTagsReturnsAllEvents()
     {
         var cache = new EventFilterCache();
         var events = SampleEvents();
-        var result = cache.GetFiltered("Chaos", events, []);
+        var result = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.StartsAtAsc);
         Assert.Equal(events.Count, result.Count);
     }
 
@@ -90,7 +50,7 @@ public class EventFilterCacheTests
     public void SingleTagFiltersCorrectly()
     {
         var cache = new EventFilterCache();
-        var result = cache.GetFiltered("Chaos", SampleEvents(), ["dance"]);
+        var result = cache.GetFiltered("Chaos", SampleEvents(), ["dance"], string.Empty, SortMode.StartsAtAsc);
         Assert.Equal(2, result.Count);
         Assert.All(result, e => Assert.Contains("dance", e.Tags));
     }
@@ -99,7 +59,7 @@ public class EventFilterCacheTests
     public void MultipleTagsAreAndedTogether()
     {
         var cache = new EventFilterCache();
-        var result = cache.GetFiltered("Chaos", SampleEvents(), ["dance", "rp"]);
+        var result = cache.GetFiltered("Chaos", SampleEvents(), ["dance", "rp"], string.Empty, SortMode.StartsAtAsc);
         Assert.Single(result);
         Assert.Equal(1, result[0].Id);
     }
@@ -108,7 +68,7 @@ public class EventFilterCacheTests
     public void NoMatchingTagReturnsEmpty()
     {
         var cache = new EventFilterCache();
-        var result = cache.GetFiltered("Chaos", SampleEvents(), ["unknown-tag"]);
+        var result = cache.GetFiltered("Chaos", SampleEvents(), ["unknown-tag"], string.Empty, SortMode.StartsAtAsc);
         Assert.Empty(result);
     }
 
@@ -117,8 +77,8 @@ public class EventFilterCacheTests
     {
         var cache = new EventFilterCache();
         var events = SampleEvents();
-        var first = cache.GetFiltered("Chaos", events, ["rp"]);
-        var second = cache.GetFiltered("Chaos", events, ["rp"]);
+        var first = cache.GetFiltered("Chaos", events, ["rp"], string.Empty, SortMode.StartsAtAsc);
+        var second = cache.GetFiltered("Chaos", events, ["rp"], string.Empty, SortMode.StartsAtAsc);
         Assert.Same(first, second);
     }
 
@@ -127,8 +87,8 @@ public class EventFilterCacheTests
     {
         var cache = new EventFilterCache();
         var events = SampleEvents();
-        var chaos = cache.GetFiltered("Chaos", events, ["dance"]);
-        var light = cache.GetFiltered("Light", events, ["rp"]);
+        var chaos = cache.GetFiltered("Chaos", events, ["dance"], string.Empty, SortMode.StartsAtAsc);
+        var light = cache.GetFiltered("Light", events, ["rp"], string.Empty, SortMode.StartsAtAsc);
         Assert.Equal(2, chaos.Count);
         Assert.Equal(3, light.Count);
     }
@@ -138,9 +98,9 @@ public class EventFilterCacheTests
     {
         var cache = new EventFilterCache();
         var events = SampleEvents();
-        var before = cache.GetFiltered("Chaos", events, ["dance"]);
+        var before = cache.GetFiltered("Chaos", events, ["dance"], string.Empty, SortMode.StartsAtAsc);
         cache.Clear();
-        var after = cache.GetFiltered("Chaos", events, ["dance"]);
+        var after = cache.GetFiltered("Chaos", events, ["dance"], string.Empty, SortMode.StartsAtAsc);
         Assert.NotSame(before, after);
         Assert.Equal(before.Count, after.Count);
     }
@@ -150,8 +110,49 @@ public class EventFilterCacheTests
     {
         var cache = new EventFilterCache();
         var events = SampleEvents();
-        var first = cache.GetFiltered("Chaos", events, ["rp", "dance"]);
-        var second = cache.GetFiltered("Chaos", events, ["dance", "rp"]);
+        var first = cache.GetFiltered("Chaos", events, ["rp", "dance"], string.Empty, SortMode.StartsAtAsc);
+        var second = cache.GetFiltered("Chaos", events, ["dance", "rp"], string.Empty, SortMode.StartsAtAsc);
         Assert.Same(first, second);
+    }
+
+    [Theory]
+    [InlineData("moonlit", 1)]   // title
+    [InlineData("MOONLIT", 1)]   // case-insensitive
+    [InlineData("triad", 2)]     // description
+    [InlineData("goblet", 2)]    // venue string
+    [InlineData("balmung", 1)]   // world name
+    [InlineData("games", 2)]     // tag
+    public void SearchMatchesEveryDisplayedField(string term, int expectedId)
+    {
+        var cache = new EventFilterCache();
+        var result = Filter(cache, SearchableEvents(), term);
+        Assert.Single(result);
+        Assert.Equal(expectedId, result[0].Id);
+    }
+
+    [Fact]
+    public void SearchWithNoMatchReturnsEmpty()
+    {
+        var cache = new EventFilterCache();
+        Assert.Empty(Filter(cache, SearchableEvents(), "chocobo racing"));
+    }
+
+    [Fact]
+    public void SearchToleratesMissingLocationData()
+    {
+        var cache = new EventFilterCache();
+        // SampleEvents have no LocationData at all.
+        Assert.Empty(Filter(cache, SampleEvents(), "balmung"));
+    }
+
+    [Fact]
+    public void SortByAttendeesOrdersDescending()
+    {
+        var cache = new EventFilterCache();
+        var events = SampleEvents();
+        events[2].AttendeeCount = 50;
+        events[0].AttendeeCount = 10;
+        var result = cache.GetFiltered("Chaos", events, [], string.Empty, SortMode.AttendeeCountDesc);
+        Assert.Equal(3, result[0].Id);
     }
 }

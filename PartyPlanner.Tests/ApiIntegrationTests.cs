@@ -4,6 +4,7 @@ using GraphQL.Client.Serializer.Newtonsoft;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using PartyPlanner.Models;
 
 namespace PartyPlanner.Tests;
 

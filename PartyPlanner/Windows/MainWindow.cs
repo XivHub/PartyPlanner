@@ -18,7 +18,8 @@ public sealed class MainWindow : Window, IDisposable
     // All the events
     private readonly List<Models.EventType> partyVerseEvents = new(50);
     private readonly Dictionary<string, List<Models.EventType>> eventsByDc = [];
-    private readonly Dictionary<string, SortedDictionary<string, bool>> tagsByDc = [];
+    // Tag names offered per data center. Read-only data; what the user ticked lives in Configuration.
+    private readonly Dictionary<string, SortedSet<string>> tagsByDc = [];
     private DateTime lastUpdate = DateTime.Now;
     private string? displayError = null;
     private Configuration Configuration { get; init; }
@@ -37,6 +38,7 @@ public sealed class MainWindow : Window, IDisposable
 
     private bool _isLoading = false;
     private string _loadingStatus = string.Empty;
+    private int _refreshInFlight;
 
     public MainWindow(Configuration configuration) : base("PartyPlanner", ImGuiWindowFlags.None)
     {
@@ -70,6 +72,22 @@ public sealed class MainWindow : Window, IDisposable
 
     public async Task UpdateEvents(CancellationToken ct = default)
     {
+        // One refresh at a time: the reload button, OnOpen and the initial load can all fire.
+        if (Interlocked.CompareExchange(ref _refreshInFlight, 1, 0) == 1)
+            return;
+
+        try
+        {
+            await FetchEvents(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshInFlight, 0);
+        }
+    }
+
+    private async Task FetchEvents(CancellationToken ct)
+    {
         lock (_dataLock)
         {
             displayError = null;
@@ -79,7 +97,7 @@ public sealed class MainWindow : Window, IDisposable
 
         var localEvents = new List<Models.EventType>(50);
         var localByDc = new Dictionary<string, List<Models.EventType>>();
-        var localTagsByDc = new Dictionary<string, SortedDictionary<string, bool>>();
+        var localTagsByDc = new Dictionary<string, SortedSet<string>>();
 
         int page = 0;
         bool queryMore = true;
@@ -88,6 +106,7 @@ public sealed class MainWindow : Window, IDisposable
         {
             while (queryMore)
             {
+                ct.ThrowIfCancellationRequested();
                 lock (_dataLock) { _loadingStatus = string.Format("Fetching active events (page {0})...", page + 1); }
                 var newEvents = await partyVerseApi.GetActiveEvents(page);
                 queryMore = newEvents.Count >= 100;
@@ -99,6 +118,7 @@ public sealed class MainWindow : Window, IDisposable
             queryMore = true;
             while (queryMore)
             {
+                ct.ThrowIfCancellationRequested();
                 lock (_dataLock) { _loadingStatus = string.Format("Fetching events (page {0})...", page + 1); }
                 var newEvents = await partyVerseApi.GetEvents(page);
                 queryMore = newEvents.Count >= 100;
@@ -133,17 +153,14 @@ public sealed class MainWindow : Window, IDisposable
                 if (ev.LocationData == null || ev.LocationData.DataCenter == null) continue;
                 var key = ev.LocationData.DataCenter.Name;
 
-                if (!localByDc.ContainsKey(key))
-                    localByDc.Add(key, []);
-                localByDc[key].Add(ev);
-                if (!localTagsByDc.ContainsKey(key))
-                    localTagsByDc.Add(key, []);
+                if (!localByDc.TryGetValue(key, out var dcEvents))
+                    localByDc[key] = dcEvents = [];
+                dcEvents.Add(ev);
 
+                if (!localTagsByDc.TryGetValue(key, out var dcTags))
+                    localTagsByDc[key] = dcTags = [];
                 foreach (var tag in ev.Tags)
-                {
-                    if (!localTagsByDc[key].ContainsKey(tag))
-                        localTagsByDc[key].Add(tag, false);
-                }
+                    dcTags.Add(tag);
             }
 
             eventFilterCache.Clear();
@@ -160,6 +177,10 @@ public sealed class MainWindow : Window, IDisposable
                 lastUpdate = localLastUpdate;
             }
 
+            lock (_dataLock) { _isLoading = false; _loadingStatus = string.Empty; }
+        }
+        catch (OperationCanceledException)
+        {
             lock (_dataLock) { _isLoading = false; _loadingStatus = string.Empty; }
         }
         catch (Exception ex)
@@ -212,8 +233,18 @@ public sealed class MainWindow : Window, IDisposable
     }
 
 
+    /// <summary>Ticked tags for a data center, created on first use. Persisted in the config.</summary>
+    private HashSet<string> SelectedTagsFor(string dataCenterName)
+    {
+        if (!this.Configuration.SelectedTagsByDc.TryGetValue(dataCenterName, out var selected))
+            this.Configuration.SelectedTagsByDc[dataCenterName] = selected = [];
+        return selected;
+    }
+
     public override void Draw()
     {
+        attachmentImageCache.BeginFrame();
+
         bool isLoading;
         string loadingStatus;
         string? localError;
@@ -325,13 +356,13 @@ public sealed class MainWindow : Window, IDisposable
             }
 
             List<Models.EventType> events;
-            SortedDictionary<string, bool> tags;
+            List<string> tags;
             lock (_dataLock)
             {
                 var rawEvents = eventsByDc.GetValueOrDefault(dataCenter.Name);
                 events = rawEvents != null ? new List<Models.EventType>(rawEvents) : [];
                 var rawTags = tagsByDc.GetValueOrDefault(dataCenter.Name);
-                tags = rawTags ?? [];
+                tags = rawTags != null ? [.. rawTags] : [];
             }
 
             if (!_searchByDc.ContainsKey(dataCenter.Name))
@@ -351,26 +382,29 @@ public sealed class MainWindow : Window, IDisposable
                 eventFilterCache.Clear();
             }
 
-            var i = 0;
-            foreach (var (tag, selected) in tags.ToList())
+            var selectedTags = SelectedTagsFor(dataCenter.Name);
+
+            for (var i = 0; i < tags.Count; i++)
             {
-                ImGui.SameLine();
-                if (i % 8 == 0)
-                {
-                    ImGui.NewLine();
-                }
+                var tag = tags[i];
+                if (i % 8 != 0)
+                    ImGui.SameLine();
 
-                var selectedLocal = selected;
-                if (ImGui.Checkbox(tag, ref selectedLocal))
+                var isSelected = selectedTags.Contains(tag);
+                if (ImGui.Checkbox(tag, ref isSelected))
                 {
-                    tags[tag] = selectedLocal;
+                    if (isSelected)
+                        selectedTags.Add(tag);
+                    else
+                        selectedTags.Remove(tag);
+                    this.Configuration.Save();
                 }
-
-                i += 1;
             }
 
-            var selectedTags = tags.Where(t => t.Value).Select(t => t.Key).ToList();
-            var filteredEvents = eventFilterCache.GetFiltered(dataCenter.Name, events, selectedTags, searchText, this.Configuration.CurrentSortMode);
+            // Filter by the ticked tags that this data center still offers, so a stale selection
+            // from another data center can't silently empty the list.
+            var activeTags = tags.Where(selectedTags.Contains).ToList();
+            var filteredEvents = eventFilterCache.GetFiltered(dataCenter.Name, events, activeTags, searchText, this.Configuration.CurrentSortMode);
 
             foreach (var ev in filteredEvents)
             {
