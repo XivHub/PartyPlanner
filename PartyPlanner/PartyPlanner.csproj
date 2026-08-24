@@ -24,6 +24,14 @@
 		<PackageReference Include="System.Reactive" Version="6.1.0" />
 	</ItemGroup>
 
+	<!-- Shared helpers compiled from source; see ~/dev/XivHubPluginKit/README.md -->
+	<ItemGroup>
+		<Compile Include="..\..\XivHubPluginKit\UI\HubColors.cs" Link="Kit\UI\HubColors.cs" />
+		<Compile Include="..\..\XivHubPluginKit\UI\HubStyle.cs" Link="Kit\UI\HubStyle.cs" />
+		<Compile Include="..\..\XivHubPluginKit\UI\HubThemeConfig.cs" Link="Kit\UI\HubThemeConfig.cs" />
+		<Compile Include="..\..\XivHubPluginKit\UI\HubThemeEditor.cs" Link="Kit\UI\HubThemeEditor.cs" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<None Update="images\icon.png">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -3,6 +3,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using System;
 using System.Numerics;
+using XivHubPluginKit.UI;
 
 namespace PartyPlanner.Windows
 {
@@ -110,6 +111,8 @@ namespace PartyPlanner.Windows
                 dirty = true;
             }
 
+            DrawAppearanceSection();
+
             ImGui.Spacing();
             ImGui.Separator();
             ImGui.Text("Source code");
@@ -123,6 +126,18 @@ namespace PartyPlanner.Windows
                 this.configuration.Save();
                 this.onChanged();
             }
+        }
+
+        /// <summary>The shared XIV Hub theme editor; see XivHubPluginKit/UI/THEME.md.</summary>
+        private static void DrawAppearanceSection()
+        {
+            ImGui.Spacing();
+            ImGui.Separator();
+            ImGui.Spacing();
+            ImGui.Text("Appearance");
+            ImGui.TextColored(HubStyle.Faint, "Shared with every XIV Hub plugin.");
+            ImGui.Spacing();
+            HubThemeEditor.Draw(Plugin.ThemeConfig);
         }
 
         /// <summary>Small grey explanation under the setting it belongs to.</summary>

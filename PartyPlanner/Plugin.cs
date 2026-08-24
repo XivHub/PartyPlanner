@@ -11,6 +11,7 @@ using ECommons;
 using PartyPlanner.IPC;
 using PartyPlanner.Windows;
 using System;
+using XivHubPluginKit.UI;
 
 namespace PartyPlanner
 {
@@ -37,6 +38,8 @@ namespace PartyPlanner
         public static NavmeshIPC Navmesh { get; private set; } = null!;
         /// <summary>Shared settings, so the render helpers don't have to thread them through.</summary>
         public static Configuration Config { get; private set; } = null!;
+        /// <summary>Shared across every XIV Hub plugin; see XivHubPluginKit/UI/THEME.md.</summary>
+        public static HubThemeConfigService ThemeConfig { get; private set; } = null!;
         public Configuration Configuration { get; init; }
         public WindowSystem WindowSystem = new("PartyPlanner");
         private readonly MainWindow mainWindow;
@@ -51,6 +54,11 @@ namespace PartyPlanner
             this.Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
             this.Configuration.Initialize(PluginInterface);
             Config = this.Configuration;
+
+            ThemeConfig = new HubThemeConfigService(
+                PluginInterface.GetPluginConfigDirectory(),
+                (msg, ex) => Logger.Warning(ex, msg));
+            HubStyle.Init(ThemeConfig);
 
             var uiBuilder = PluginInterface.UiBuilder;
             var defaultSpec = (SingleFontSpec)uiBuilder.DefaultFontSpec;
@@ -75,7 +83,7 @@ namespace PartyPlanner
                 HelpMessage = "Display a list of community events sourced from partyverse.app"
             });
 
-            PluginInterface.UiBuilder.Draw += DrawUI;
+            PluginInterface.UiBuilder.Draw += DrawThemed;
         }
 
         private void ToggleConfigUi()
@@ -90,7 +98,7 @@ namespace PartyPlanner
 
         public void Dispose()
         {
-            PluginInterface.UiBuilder.Draw -= DrawUI;
+            PluginInterface.UiBuilder.Draw -= DrawThemed;
 
             this.WindowSystem.RemoveAllWindows();
 
@@ -109,9 +117,17 @@ namespace PartyPlanner
 
         }
 
-        private void DrawUI()
+        /// <summary>
+        /// One wrap point for the whole plugin: no window class knows the theme
+        /// exists, and the pop is guaranteed even if a window throws mid-draw —
+        /// ImGui's style stack is global, so an unbalanced push corrupts every
+        /// plugin drawing after this one.
+        /// </summary>
+        private void DrawThemed()
         {
-            this.WindowSystem.Draw();
+            HubStyle.Push();
+            try { this.WindowSystem.Draw(); }
+            finally { HubStyle.Pop(); }
         }
     }
 }

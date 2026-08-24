@@ -6,6 +6,7 @@ using PartyPlanner.IPC;
 using PartyPlanner.Models;
 using System;
 using System.Numerics;
+using XivHubPluginKit.UI;
 
 namespace PartyPlanner.Helpers;
 
@@ -14,14 +15,6 @@ namespace PartyPlanner.Helpers;
 /// </summary>
 public static class EventRenderer
 {
-    // Static color constants to avoid allocations
-    private static readonly Vector4 ColorGreen = new(0.0742f, 0.530f, 0.150f, 1.0f);
-    private static readonly Vector4 ColorPurple = new(0.668f, 0.146f, 0.910f, 1.0f);
-    private static readonly Vector4 ColorBlue = new(0.156f, 0.665f, 0.920f, 1.0f);
-    private static readonly Vector4 ColorLightGreen = new(0.0888f, 0.740f, 0.176f, 1.0f);
-    private static readonly Vector4 ColorGray = new(0.55f, 0.55f, 0.55f, 1.0f);
-    private static readonly Vector4 ColorSectionHeader = new(0.90f, 0.75f, 0.35f, 1.0f);
-
     private const string AttachmentBaseUrl = "https://cdn.partake.gg/assets/";
 
     private const float MaxImageWidth = 500f;
@@ -36,7 +29,7 @@ public static class EventRenderer
         // Event title (clickable, opens partake.gg) — rendered at 1.3× size
         var hasTitle = !string.IsNullOrEmpty(ev.Title);
         using (Plugin.TitleFontHandle.Push())
-            ImGui.TextColored(hasTitle ? ColorPurple : ColorGray, hasTitle ? ev.Title : "(No title)");
+            ImGui.TextColored(hasTitle ? HubStyle.Info : HubStyle.Faint, hasTitle ? ev.Title : "(No title)");
         if (ImGui.IsItemClicked())
         {
             Util.OpenLink("https://www.partake.gg/events/{0}".Format(ev.Id));
@@ -59,7 +52,7 @@ public static class EventRenderer
         if (ImGui.IsItemHovered())
         {
             ImGui.BeginTooltip();
-            ImGui.TextColored(ColorGreen, cached.Location);
+            ImGui.TextColored(HubStyle.Info, cached.Location);
             ImGui.Text("Click to copy");
             ImGui.EndTooltip();
         }
@@ -71,9 +64,9 @@ public static class EventRenderer
 
         // Live / starting-soon badge
         if (cached.IsLive)
-            ImGui.TextColored(ColorLightGreen, "Happening now");
+            ImGui.TextColored(HubStyle.Good, "Happening now");
         else if (cached.StartsSoonLabel.Length > 0)
-            ImGui.TextColored(ColorSectionHeader, cached.StartsSoonLabel);
+            ImGui.TextColored(HubStyle.Warn, cached.StartsSoonLabel);
 
         if (Plugin.Config.ShowRelativeTimes)
         {
@@ -94,11 +87,11 @@ public static class EventRenderer
         }
 
         // Full time range
-        ImGui.TextColored(ColorBlue,
+        ImGui.TextColored(HubStyle.Muted,
            string.Format("From {0} to {1}", cached.StartsAtLocal, cached.EndsAtLocal));
 
         // Tags
-        ImGui.TextColored(ColorLightGreen,
+        ImGui.TextColored(HubStyle.Muted,
             string.Format("Tags: {0}", cached.FormattedTags));
 
         // Description (collapsible)
@@ -268,7 +261,7 @@ public static class EventRenderer
             else if (line.Length < 60 && line.EndsWith(':'))
             {
                 ImGui.Spacing();
-                ImGui.TextColored(ColorSectionHeader, line);
+                ImGui.TextColored(HubStyle.Accent, line);
             }
             else
             {
